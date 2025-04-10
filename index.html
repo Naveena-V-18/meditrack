@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediTrack - Medicine Tracker</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background: #f4f6f9;
+      padding: 20px;
+    }
+    .med-card {
+      margin-bottom: 15px;
+    }
+    .taken {
+      text-decoration: line-through;
+      color: gray;
+    }
+    .dark-mode {
+      background-color: #121212;
+      color: white;
+    }
+    .dark-mode .card {
+      background-color: #1e1e1e;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">💊 MediTrack</h1>
+    <button class="btn btn-dark" onclick="toggleDarkMode()">🌙 Dark Mode</button>
+  </div>
+
+  <form id="med-form" class="row g-3">
+    <div class="col-md-3">
+      <input type="text" id="med-name" class="form-control" placeholder="Medicine Name" required>
+    </div>
+    <div class="col-md-3">
+      <input type="datetime-local" id="med-time" class="form-control" required>
+    </div>
+    <div class="col-md-2">
+      <select id="med-frequency" class="form-select">
+        <option value="24">Every 24 hrs</option>
+        <option value="12">Every 12 hrs</option>
+        <option value="8">Every 8 hrs</option>
+      </select>
+    </div>
+    <div class="col-md-2">
+      <input type="number" id="med-dose" class="form-control" placeholder="Dose (mg)" required>
+    </div>
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-success w-100">Add</button>
+    </div>
+  </form>
+
+  <hr>
+  <h4>Your Medicine Schedule</h4>
+  <div id="med-list"></div>
+
+  <hr>
+  <h4>Dose History Chart</h4>
+  <canvas id="doseChart"></canvas>
+</div>
+
+<script>
+let meds = JSON.parse(localStorage.getItem("meds")) || [];
+const form = document.getElementById("med-form");
+const list = document.getElementById("med-list");
+const ctx = document.getElementById('doseChart').getContext('2d');
+let chart;
+
+function saveMeds() {
+  localStorage.setItem("meds", JSON.stringify(meds));
+}
+
+function displayMeds() {
+  list.innerHTML = "";
+  meds.forEach((med, index) => {
+    const nextDose = new Date(med.time);
+    const now = new Date();
+    const due = now > nextDose ? "🔴 Due!" : "🟢 Upcoming";
+
+    const card = document.createElement("div");
+    card.className = "card p-3 med-card";
+    card.innerHTML = `
+      <div class="d-flex justify-content-between">
+        <div>
+          <h5 class="${med.taken ? 'taken' : ''}">${med.name}</h5>
+          <p>Next dose: ${new Date(med.time).toLocaleString()} (${due})</p>
+          <p>Frequency: every ${med.frequency} hrs | Dose: ${med.dose} mg</p>
+        </div>
+        <div>
+          <button class="btn btn-sm btn-primary" onclick="markTaken(${index})">✔️ Taken</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteMed(${index})">🗑️ Delete</button>
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+  updateChart();
+}
+
+function markTaken(index) {
+  meds[index].taken = true;
+  const nextTime = new Date(meds[index].time);
+  nextTime.setHours(nextTime.getHours() + parseInt(meds[index].frequency));
+  meds[index].time = nextTime.toISOString();
+  meds[index].taken = false;
+  saveMeds();
+  displayMeds();
+}
+
+function deleteMed(index) {
+  meds.splice(index, 1);
+  saveMeds();
+  displayMeds();
+}
+
+function updateChart() {
+  const names = meds.map(m => m.name);
+  const doses = meds.map(m => m.dose);
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: names,
+      datasets: [{
+        label: 'Dose (mg)',
+        data: doses,
+        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+function toggleDarkMode() {
+  document.body.classList.toggle("dark-mode");
+}
+
+form.addEventListener("submit", e => {
+  e.preventDefault();
+  const name = document.getElementById("med-name").value;
+  const time = document.getElementById("med-time").value;
+  const freq = document.getElementById("med-frequency").value;
+  const dose = parseInt(document.getElementById("med-dose").value);
+
+  meds.push({ name, time, frequency: freq, dose, taken: false });
+  saveMeds();
+  form.reset();
+  displayMeds();
+});
+
+displayMeds();
+</script>
+</body>
+</html>
